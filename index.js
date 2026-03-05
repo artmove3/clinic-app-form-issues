@@ -4,13 +4,8 @@ const path = require("path");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const auth = require("./middlewares/auth");
-const {
-  addNote,
-  getNotes,
-  removeNote,
-  editNote,
-} = require("./notes.controller");
-const { addUser, loginUser } = require("./user.controller");
+const { loginUser } = require("./user.controller");
+const { addIssue, getIssues } = require("./form-issue.controller");
 
 //localhost:3000
 const port = 3000;
@@ -36,54 +31,13 @@ app.use(express.json());
 app.get("/login", async (req, res) => {
   try {
     res.render("login", {
-      title: "Express App",
+      title: "Login",
       error: undefined,
     });
   } catch (e) {
     console.log("Loading error", e);
     res.render("login", {
-      title: "Express App",
-      error: e.message,
-    });
-  }
-});
-
-// register
-
-app.get("/register", async (req, res) => {
-  try {
-    res.render("register", {
-      title: "Express App",
-      error: undefined,
-    });
-  } catch (e) {
-    console.log("Loading error", e);
-    res.render("register", {
-      title: "Express App",
-      error: e.message,
-    });
-  }
-});
-
-// add user
-
-app.post("/register", async (req, res) => {
-  try {
-    await addUser(req.body.email, req.body.password);
-    res.redirect("/login");
-  } catch (e) {
-    if (e.code === 11000) {
-      console.log("Register error", e);
-      res.render("register", {
-        title: "Express App",
-        error: "Email is already registered",
-      });
-
-      return;
-    }
-    console.log("Register error", e);
-    res.render("register", {
-      title: "Express App",
+      title: "Login",
       error: e.message,
     });
   }
@@ -97,43 +51,29 @@ app.post("/login", async (req, res) => {
     // задаем в куки по имени 'token' зашифрованную строку из функции loginUser
     // hhtpOnly закрывает доступ к токену через консоль браузера
     res.cookie("token", token, { httpOnly: true });
-    res.redirect("/");
+    res.redirect("/issues-table");
   } catch (e) {
     res.render("login", {
-      title: "Express App",
+      title: "Login",
       error: e.message,
     });
   }
 });
 
-app.get("/logout", (req, res) => {
-  res.cookie("token", "", { httpOnly: true });
-
-  res.redirect("/login");
-});
-
-// ставим авторизацию после обработки логина или регистрации
-// на главную получают доступ только залогиненные пользователи
-
-app.use(auth);
-
 // main page
 
 app.get("/", async (req, res) => {
   try {
+    res.cookie("token", "", { httpOnly: true });
     res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+      title: "Запись к врачу",
       created: false,
       error: false,
     });
   } catch (e) {
     console.log("Loading error", e);
     res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+      title: "Запись к врачу",
       created: false,
       error: true,
     });
@@ -142,74 +82,50 @@ app.get("/", async (req, res) => {
 
 app.post("/", async (req, res) => {
   try {
-    await addNote(req.body.title, req.user.email);
+    await addIssue(req.body.userName, req.body.phoneNumber, req.body.issueText);
     res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+      title: "Запись к врачу",
       created: true,
       error: false,
     });
   } catch (e) {
     console.log("Creation error", e);
     res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+      title: "Запись к врачу",
       created: false,
       error: true,
     });
   }
 });
 
-app.put("/:id", async (req, res) => {
+// Если пользователь не авторизован, то при попытке перехода на /issues-table будет перенаправлен на главную страницу
+
+app.use(auth);
+
+app.get("/issues-table", async (req, res) => {
   try {
-    console.log(req.body, req.user);
-    await editNote(req.params.id, req.body.title, req.user.email);
-    res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+    res.render("issuesTable", {
+      title: "Заявки с формы",
+      issues: await getIssues(),
       created: false,
       error: false,
     });
   } catch (e) {
-    res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
+    console.log("Loading error", e);
+    res.render("issuesTable", {
+      title: "Заявки с формы",
+      issues: undefined,
       created: false,
-      error: e.message,
+      error: true,
     });
   }
 });
 
-app.delete("/:id", async (req, res) => {
-  try {
-    await removeNote(req.params.id1, req.user.email);
-    res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
-
-      created: false,
-      error: false,
-    });
-  } catch (e) {
-    res.render("index", {
-      title: "Express App",
-      notes: await getNotes(),
-      userEmail: req.user.email,
-      created: false,
-      error: e.message11,
-    });
-  }
-});
 // подключаем через MongoDB Atlas, выбираем кластер, нажимаем Connect, оттуда копируем строчку для первого параметра
 // только после подключения к DB запускаем приложение
 mongoose
   .connect(
-    "mongodb+srv://artmove3_db_user:vtcQgZq2AYe5rURJ@cluster0.3tqzmmo.mongodb.net/notes?appName=Cluster0",
+    "mongodb+srv://artmove3_db_user:vtcQgZq2AYe5rURJ@cluster0.3tqzmmo.mongodb.net/clinics_app?appName=Cluster0",
   )
   .then(() => {
     app.listen(port, () => {
